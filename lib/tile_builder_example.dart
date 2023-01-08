@@ -28,7 +28,10 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
   bool showCoords = false;
   bool grid = false;
   int panBuffer = 0;
+
   List<int> selectedDistances = [200, 300, 400, 600, 1000];
+  String selectedMarker = '';
+  List<Brevet> brevetsToDisplay = [];
 
   List<Brevet> brevets = [
     Brevet('Paris', 200, 48.8534, 2.3488),
@@ -38,42 +41,6 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
 
   final brevetsFuture =
       supabase.from('brevets').select<List<Map<String, dynamic>>>();
-
-  // mix of [coordinateDebugTileBuilder] and [loadingTimeDebugTileBuilder] from tile_builder.dart
-  Widget tileBuilder(BuildContext context, Widget tileWidget, Tile tile) {
-    final coords = tile.coords;
-
-    return Container(
-      decoration: BoxDecoration(
-        border: grid ? Border.all() : null,
-      ),
-      child: Stack(
-        fit: StackFit.passthrough,
-        children: [
-          tileWidget,
-          if (loadingTime || showCoords)
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (showCoords)
-                  Text(
-                    '${coords.x.floor()} : ${coords.y.floor()} : ${coords.z.floor()}',
-                    style: Theme.of(context).textTheme.headline5,
-                  ),
-                if (loadingTime)
-                  Text(
-                    tile.loaded == null
-                        ? 'Loading'
-                        // sometimes result is negative which shouldn't happen, abs() corrects it
-                        : '${(tile.loaded!.millisecond - tile.loadStarted.millisecond).abs()} ms',
-                    style: Theme.of(context).textTheme.headline5,
-                  ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
 
   FloatingActionButton buildDistanceFilter(int distance) {
     return FloatingActionButton.extended(
@@ -97,10 +64,12 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
@@ -115,58 +84,6 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
               buildDistanceFilter(1000),
             ],
           ),
-          const SizedBox(height: 8),
-          FloatingActionButton.extended(
-            heroTag: 'grid',
-            label: Text(
-              grid ? 'Hide grid' : 'Show grid',
-              textAlign: TextAlign.center,
-            ),
-            icon: Icon(grid ? Icons.grid_off : Icons.grid_on),
-            onPressed: () => setState(() => grid = !grid),
-          ),
-          const SizedBox(height: 8),
-          FloatingActionButton.extended(
-            heroTag: 'coords',
-            label: Text(
-              showCoords ? 'Hide coords' : 'Show coords',
-              textAlign: TextAlign.center,
-            ),
-            icon: Icon(showCoords ? Icons.unarchive : Icons.bug_report),
-            onPressed: () => setState(() => showCoords = !showCoords),
-          ),
-          const SizedBox(height: 8),
-          FloatingActionButton.extended(
-            heroTag: 'ms',
-            label: Text(
-              loadingTime ? 'Hide loading time' : 'Show loading time',
-              textAlign: TextAlign.center,
-            ),
-            icon: Icon(loadingTime ? Icons.timer_off : Icons.timer),
-            onPressed: () => setState(() => loadingTime = !loadingTime),
-          ),
-          const SizedBox(height: 8),
-          FloatingActionButton.extended(
-            heroTag: 'dark-light',
-            label: Text(
-              darkMode ? 'Light mode' : 'Dark mode',
-              textAlign: TextAlign.center,
-            ),
-            icon: Icon(darkMode ? Icons.brightness_high : Icons.brightness_2),
-            onPressed: () => setState(() => darkMode = !darkMode),
-          ),
-          const SizedBox(height: 8),
-          FloatingActionButton.extended(
-            heroTag: 'panBuffer',
-            label: Text(
-              panBuffer == 0 ? 'panBuffer off' : 'panBuffer on',
-              textAlign: TextAlign.center,
-            ),
-            icon: Icon(grid ? Icons.grid_off : Icons.grid_on),
-            onPressed: () => setState(() {
-              panBuffer = panBuffer == 0 ? 1 : 0;
-            }),
-          ),
         ],
       ),
       body: Row(children: [
@@ -176,20 +93,18 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
             flex: 3,
             child: Column(
               children: [
-                FutureBuilder<List<Map<String, dynamic>>>(
-                  future: brevetsFuture,
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final brevets = snapshot.data!;
-                    return Text(brevets[0]['city']);
-                  },
-                ),
-                SizedBox(height: 10),
-                Row(
-                    children:
-                        selectedDistances.map((e) => Text('toto')).toList())
+                Visibility(
+                    visible: brevetsToDisplay.isNotEmpty,
+                    child: Column(
+                      children: brevetsToDisplay
+                          .map((e) => Card(
+                                child: ListTile(
+                                  title: Text('${e.distance} km'),
+                                  subtitle: Text(e.city),
+                                ),
+                              ))
+                          .toList(),
+                    )),
               ],
             ),
           ),
@@ -213,10 +128,6 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                     urlTemplate:
                         'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=c039ca3093f842ac8ffd0039ad22226c',
                     userAgentPackageName: 'com.example.app',
-                    tileBuilder: tileBuilder,
-                    tilesContainerBuilder:
-                        darkMode ? darkModeTilesContainerBuilder : null,
-                    panBuffer: panBuffer,
                   ),
                   MarkerLayer(
                       markers: brevets
@@ -228,13 +139,19 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                               width: 80,
                               height: 80,
                               builder: (ctx) => GestureDetector(
-                                    onTap: () {
-                                      ScaffoldMessenger.of(ctx)
-                                          .showSnackBar(const SnackBar(
-                                        content: Text(
-                                            'Tapped on purple FlutterLogo Marker'),
-                                      ));
-                                    },
+                                    onTap: () => setState(() =>
+                                        brevetsToDisplay = brevets
+                                            .where((element) =>
+                                                element['city'] ==
+                                                brevet['city'])
+                                            .map((brevet) => Brevet(
+                                                brevet['city'],
+                                                brevet['distance'],
+                                                brevet['latitude'],
+                                                brevet['longitude']))
+                                            .where((b) => selectedDistances
+                                                .contains(b.distance))
+                                            .toList()),
                                     child: const Icon(
                                       Icons.circle,
                                       color: Colors.red,
