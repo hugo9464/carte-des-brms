@@ -40,6 +40,8 @@ dependencies:
   latlong2: ^0.8.1
   supabase_flutter: ^1.0.0
   syncfusion_flutter_datepicker: ^20.4.42
+  url_launcher: ^6.1.7
+  flutter_map_marker_cluster: ^1.0.1
   flutter_localizations:
     sdk: flutter
 

@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -13,7 +14,29 @@ class Brevet {
   double latitude;
   double longitude;
   DateTime date;
-  Brevet(this.city, this.distance, this.latitude, this.longitude, this.date);
+  String nomOrganisateur;
+  String? mailOrganisateur;
+  String? mapLink;
+  String? clubWebSite;
+  Brevet(
+      this.city,
+      this.distance,
+      this.latitude,
+      this.longitude,
+      this.date,
+      this.nomOrganisateur,
+      this.mailOrganisateur,
+      this.mapLink,
+      this.clubWebSite);
+}
+
+_launchURL(String url) async {
+  final uri = Uri.parse(url);
+  if (await canLaunchUrl(uri))
+    await launchUrl(uri);
+  else
+    // can't launch url, there is some error
+    throw "Could not launch $url";
 }
 
 class TileBuilderPage extends StatefulWidget {
@@ -39,11 +62,14 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
   List<Brevet> brevetsToDisplay = [];
   DateTime selectedStartDate = DateTime(2023, 1, 1);
   DateTime selectedEndDate = DateTime(2023, 12, 31);
+  String hoveredMarker = '';
+  double mapZoom = 6;
 
   final brevetsFuture =
       supabase.from('brevets').select<List<Map<String, dynamic>>>();
 
   final DateRangePickerController _controller = DateRangePickerController();
+  MapController _mapController = MapController();
 
   FloatingActionButton buildDistanceFilter(int distance) {
     return FloatingActionButton.extended(
@@ -67,6 +93,7 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
   Column _getGettingStartedDatePicker(bool isStart) {
     return Column(
       children: [
+        Text('Afficher les brevets avant le :'),
         SfDateRangePicker(
           showNavigationArrow: true,
           minDate: DateTime(2023, 1, 1),
@@ -92,16 +119,40 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
             })
           },
         ),
-        TextButton(
-            onPressed: () => {
-                  setState(() {
-                    isStart
-                        ? (_showBeginDateRangePicker =
-                            !_showBeginDateRangePicker)
-                        : (_showEndDateRangePicker = !_showEndDateRangePicker);
-                  })
-                },
-            child: Text('FERMER'))
+        SizedBox(
+          height: 5,
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            TextButton(
+                onPressed: () => {
+                      setState(() {
+                        isStart
+                            ? (_showBeginDateRangePicker =
+                                !_showBeginDateRangePicker)
+                            : (_showEndDateRangePicker =
+                                !_showEndDateRangePicker);
+
+                        isStart
+                            ? (selectedStartDate = DateTime(2023, 1, 1))
+                            : (selectedEndDate = DateTime(2023, 12, 31));
+                      })
+                    },
+                child: Text('EFFACER')),
+            TextButton(
+                onPressed: () => {
+                      setState(() {
+                        isStart
+                            ? (_showBeginDateRangePicker =
+                                !_showBeginDateRangePicker)
+                            : (_showEndDateRangePicker =
+                                !_showEndDateRangePicker);
+                      })
+                    },
+                child: Text('OK')),
+          ],
+        ),
       ],
     );
   }
@@ -136,12 +187,13 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
       floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              const SizedBox(width: 50),
               buildDistanceFilter(200),
               const SizedBox(width: 8),
               buildDistanceFilter(300),
@@ -186,7 +238,7 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
               Visibility(
                 visible: _showBeginDateRangePicker,
                 child: Container(
-                  height: 350,
+                  height: 380,
                   width: 300,
                   child: Card(
                       elevation: 10,
@@ -215,12 +267,129 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
         ],
       ),
       body: Row(children: [
-        Expanded(
-          flex: 3,
-          child: Column(
-            children: [
-              Text(selectedMarker),
-            ],
+        Visibility(
+          visible: selectedMarker.isNotEmpty,
+          child: Expanded(
+            flex: 3,
+            child: Column(
+              children: [
+                SizedBox(
+                  height: 50,
+                ),
+                if (selectedMarker.isNotEmpty)
+                  Container(
+                    width: 200,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      borderRadius: BorderRadius.all(
+                        Radius.circular(5),
+                      ),
+                    ),
+                    child: Center(
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.location_city,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              selectedMarker,
+                              style: TextStyle(
+                                fontSize: 20,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                SizedBox(
+                  height: 20,
+                ),
+                Expanded(
+                  child: SizedBox(
+                    height: 500,
+                    child: ListView(
+                      children: brevetsToDisplay
+                          .map((brevet) => Card(
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                color: Colors.white,
+                                child: Padding(
+                                    padding: EdgeInsets.only(
+                                      top: 10.0,
+                                      left: 6.0,
+                                      right: 6.0,
+                                      bottom: 10.0,
+                                    ),
+                                    child: ExpansionTile(
+                                      title: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.straighten,
+                                              color: Colors.lightBlue),
+                                          SizedBox(width: 5),
+                                          Text(brevet.distance.toString() +
+                                              ' KM'),
+                                          SizedBox(width: 40),
+                                          Icon(Icons.calendar_month,
+                                              color: Colors.lightBlue),
+                                          SizedBox(width: 5),
+                                          Text(DateFormat('dd/MM/yyyy')
+                                              .format(brevet.date)),
+                                        ],
+                                      ),
+                                      children: [
+                                        Text(
+                                          'Organisateur : ' +
+                                              brevet.nomOrganisateur,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.grey[800],
+                                          ),
+                                        ),
+                                        Text(
+                                          'Mail : ' + brevet.mailOrganisateur!,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.grey[800],
+                                          ),
+                                        ),
+                                        if (brevet.mapLink != null)
+                                          ButtonTheme(
+                                            child: IconButton(
+                                              icon: const Icon(Icons.map),
+                                              onPressed: () {
+                                                _launchURL(brevet.mapLink!);
+                                              },
+                                            ),
+                                          ),
+                                        if (brevet.clubWebSite != null)
+                                          ButtonTheme(
+                                            child: IconButton(
+                                              icon: const Icon(Icons.link),
+                                              onPressed: () {
+                                                _launchURL(brevet.clubWebSite!);
+                                              },
+                                            ),
+                                          ),
+                                      ],
+                                    )),
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         Expanded(
@@ -232,7 +401,9 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                 return const Center(child: CircularProgressIndicator());
               }
               final brevets = snapshot.data!;
+
               return FlutterMap(
+                mapController: _mapController,
                 options: MapOptions(
                   center: LatLng(46.227638, 2.213749),
                   zoom: 6,
@@ -250,7 +421,11 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                               e['distance'],
                               e['latitude'],
                               e['longitude'],
-                              DateFormat('d/M/y').parse(e['date'])))
+                              DateFormat('d/M/y').parse(e['date']),
+                              e['nomorganisateur'],
+                              e['mailorganisateur'],
+                              e['maplink'],
+                              e['clubwebsite']))
                           .where((brevet) =>
                               selectedDistances.contains(brevet.distance))
                           .where((brevet) =>
@@ -259,31 +434,55 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                               (brevet) => brevet.date.isBefore(selectedEndDate))
                           .map((brevet) => Marker(
                               point: LatLng(brevet.latitude, brevet.longitude),
-                              width: 80,
-                              height: 80,
+                              width: 10,
+                              height: 10,
                               builder: (ctx) => GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        brevetsToDisplay = brevets
-                                            .where((element) =>
-                                                element['city'] == brevet.city)
-                                            .map((brevet) => Brevet(
-                                                brevet['city'],
-                                                brevet['distance'],
-                                                brevet['latitude'],
-                                                brevet['longitude'],
-                                                DateFormat('d/M/y')
-                                                    .parse(brevet['date'])))
-                                            .toList();
-                                        selectedMarker = brevet.city;
-                                      });
+                                  onTap: () {
+                                    setState(() {
+                                      brevetsToDisplay = brevets
+                                          .where((element) =>
+                                              element['city'] == brevet.city)
+                                          .map((brevet) => Brevet(
+                                              brevet['city'],
+                                              brevet['distance'],
+                                              brevet['latitude'],
+                                              brevet['longitude'],
+                                              DateFormat('d/M/y')
+                                                  .parse(brevet['date']),
+                                              brevet['nomorganisateur'],
+                                              brevet['mailorganisateur'],
+                                              brevet['maplink'],
+                                              brevet['clubwebsite']))
+                                          .toList();
+                                      selectedMarker = brevet.city;
+                                    });
+                                    _mapController.move(
+                                        LatLng(
+                                            brevet.latitude, brevet.longitude),
+                                        10);
+                                  },
+                                  child: MouseRegion(
+                                    onEnter: (event) => {
+                                      setState(
+                                        () => hoveredMarker = brevet.city,
+                                      )
                                     },
-                                    child: const Icon(
+                                    onExit: (event) => {
+                                      setState(
+                                        () => hoveredMarker = '',
+                                      )
+                                    },
+                                    child: Icon(
                                       Icons.circle,
-                                      color: Colors.red,
-                                      size: 12,
+                                      color: brevet.city == selectedMarker
+                                          ? Colors.blue
+                                          : Colors.red,
+                                      size: (brevet.city == hoveredMarker) ||
+                                              (brevet.city == selectedMarker)
+                                          ? 20
+                                          : 12,
                                     ),
-                                  )))
+                                  ))))
                           .toList()),
                 ],
               );
