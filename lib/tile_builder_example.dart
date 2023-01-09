@@ -48,7 +48,8 @@ class TileBuilderPage extends StatefulWidget {
   _TileBuilderPageState createState() => _TileBuilderPageState();
 }
 
-class _TileBuilderPageState extends State<TileBuilderPage> {
+class _TileBuilderPageState extends State<TileBuilderPage>
+    with TickerProviderStateMixin {
   bool darkMode = false;
   bool loadingTime = false;
   bool showCoords = false;
@@ -74,7 +75,7 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
   FloatingActionButton buildDistanceFilter(int distance) {
     return FloatingActionButton.extended(
       backgroundColor:
-          selectedDistances.contains(distance) ? Colors.lightBlue : Colors.red,
+          selectedDistances.contains(distance) ? Colors.lightGreen : Colors.red,
       heroTag: distance,
       label: Text(
         distance.toString(),
@@ -93,7 +94,7 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
   Column _getGettingStartedDatePicker(bool isStart) {
     return Column(
       children: [
-        Text('Afficher les brevets avant le :'),
+        const Text('Afficher les brevets avant le :'),
         SfDateRangePicker(
           showNavigationArrow: true,
           minDate: DateTime(2023, 1, 1),
@@ -101,8 +102,9 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
           initialDisplayDate: isStart ? selectedStartDate : selectedEndDate,
           initialSelectedDate: isStart ? selectedStartDate : selectedEndDate,
           selectionMode: DateRangePickerSelectionMode.single,
-          headerStyle: DateRangePickerHeaderStyle(textAlign: TextAlign.center),
-          monthViewSettings: DateRangePickerMonthViewSettings(
+          headerStyle:
+              const DateRangePickerHeaderStyle(textAlign: TextAlign.center),
+          monthViewSettings: const DateRangePickerMonthViewSettings(
               firstDayOfWeek: 1,
               showTrailingAndLeadingDates: true,
               enableSwipeSelection: false),
@@ -119,7 +121,7 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
             })
           },
         ),
-        SizedBox(
+        const SizedBox(
           height: 5,
         ),
         Row(
@@ -139,7 +141,7 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                             : (selectedEndDate = DateTime(2023, 12, 31));
                       })
                     },
-                child: Text('EFFACER')),
+                child: const Text('EFFACER')),
             TextButton(
                 onPressed: () => {
                       setState(() {
@@ -150,7 +152,7 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                                 !_showEndDateRangePicker);
                       })
                     },
-                child: Text('OK')),
+                child: const Text('OK')),
           ],
         ),
       ],
@@ -179,6 +181,40 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
     _controller.view = DateRangePickerView.month;
 
     super.initState();
+  }
+
+  void _animatedMapMove(LatLng destLocation, double destZoom) {
+    // Create some tweens. These serve to split up the transition from one location to another.
+    // In our case, we want to split the transition be<tween> our current map center and the destination.
+    final latTween = Tween<double>(
+        begin: _mapController.center.latitude, end: destLocation.latitude);
+    final lngTween = Tween<double>(
+        begin: _mapController.center.longitude, end: destLocation.longitude);
+    final zoomTween = Tween<double>(begin: _mapController.zoom, end: destZoom);
+
+    // Create a animation controller that has a duration and a TickerProvider.
+    final controller = AnimationController(
+        duration: const Duration(milliseconds: 500), vsync: this);
+    // The animation determines what path the animation will take. You can try different Curves values, although I found
+    // fastOutSlowIn to be my favorite.
+    final Animation<double> animation =
+        CurvedAnimation(parent: controller, curve: Curves.fastOutSlowIn);
+
+    controller.addListener(() {
+      _mapController.move(
+          LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
+          zoomTween.evaluate(animation));
+    });
+
+    animation.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        controller.dispose();
+      } else if (status == AnimationStatus.dismissed) {
+        controller.dispose();
+      }
+    });
+
+    controller.forward();
   }
 
   @override
@@ -273,14 +309,14 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
             flex: 3,
             child: Column(
               children: [
-                SizedBox(
+                const SizedBox(
                   height: 50,
                 ),
                 if (selectedMarker.isNotEmpty)
                   Container(
                     width: 200,
                     height: 50,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: Colors.blue,
                       borderRadius: BorderRadius.all(
                         Radius.circular(5),
@@ -289,16 +325,16 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                     child: Center(
                       child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.location_city,
                             color: Colors.white,
                             size: 20,
                           ),
-                          SizedBox(width: 10),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               selectedMarker,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 20,
                                 color: Colors.white,
                               ),
@@ -308,7 +344,7 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                       ),
                     ),
                   ),
-                SizedBox(
+                const SizedBox(
                   height: 20,
                 ),
                 Expanded(
@@ -323,7 +359,7 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                                 ),
                                 color: Colors.white,
                                 child: Padding(
-                                    padding: EdgeInsets.only(
+                                    padding: const EdgeInsets.only(
                                       top: 10.0,
                                       left: 6.0,
                                       right: 6.0,
@@ -334,53 +370,98 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
                                         children: [
-                                          Icon(Icons.straighten,
+                                          const Icon(Icons.straighten,
                                               color: Colors.lightBlue),
-                                          SizedBox(width: 5),
+                                          const SizedBox(width: 5),
                                           Text(brevet.distance.toString() +
                                               ' KM'),
-                                          SizedBox(width: 40),
-                                          Icon(Icons.calendar_month,
+                                          const SizedBox(width: 40),
+                                          const Icon(Icons.calendar_month,
                                               color: Colors.lightBlue),
-                                          SizedBox(width: 5),
+                                          const SizedBox(width: 5),
                                           Text(DateFormat('dd/MM/yyyy')
                                               .format(brevet.date)),
                                         ],
                                       ),
                                       children: [
-                                        Text(
-                                          'Organisateur : ' +
-                                              brevet.nomOrganisateur,
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: Colors.grey[800],
-                                          ),
-                                        ),
-                                        Text(
-                                          'Mail : ' + brevet.mailOrganisateur!,
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: Colors.grey[800],
-                                          ),
-                                        ),
-                                        if (brevet.mapLink != null)
-                                          ButtonTheme(
-                                            child: IconButton(
-                                              icon: const Icon(Icons.map),
-                                              onPressed: () {
-                                                _launchURL(brevet.mapLink!);
-                                              },
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceEvenly,
+                                          children: [
+                                            Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    const Icon(
+                                                        Icons.perm_identity,
+                                                        color:
+                                                            Colors.lightBlue),
+                                                    SizedBox(
+                                                      width: 5,
+                                                    ),
+                                                    Text(
+                                                      brevet.nomOrganisateur,
+                                                      style: TextStyle(
+                                                        fontSize: 16,
+                                                        color: Colors.grey[800],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                SizedBox(height: 10),
+                                                Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    const Icon(
+                                                        Icons.mail_outline,
+                                                        color:
+                                                            Colors.lightBlue),
+                                                    SizedBox(
+                                                      width: 5,
+                                                    ),
+                                                    SelectableText(
+                                                      brevet.mailOrganisateur!,
+                                                      style: TextStyle(
+                                                        fontSize: 16,
+                                                        color: Colors.grey[800],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                        if (brevet.clubWebSite != null)
-                                          ButtonTheme(
-                                            child: IconButton(
-                                              icon: const Icon(Icons.link),
-                                              onPressed: () {
-                                                _launchURL(brevet.clubWebSite!);
-                                              },
+                                            Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.end,
+                                              children: [
+                                                if (brevet.clubWebSite != null)
+                                                  ElevatedButton(
+                                                      onPressed: () {
+                                                        _launchURL(brevet
+                                                            .clubWebSite!);
+                                                      },
+                                                      child: Text(
+                                                          'Site internet')),
+                                                SizedBox(
+                                                  height: 10,
+                                                ),
+                                                if (brevet.mapLink != null)
+                                                  ElevatedButton(
+                                                      onPressed: () {
+                                                        _launchURL(
+                                                            brevet.mapLink!);
+                                                      },
+                                                      child:
+                                                          Text('Itinéraire')),
+                                              ],
                                             ),
-                                          ),
+                                          ],
+                                        ),
                                       ],
                                     )),
                               ))
@@ -434,8 +515,8 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                               (brevet) => brevet.date.isBefore(selectedEndDate))
                           .map((brevet) => Marker(
                               point: LatLng(brevet.latitude, brevet.longitude),
-                              width: 10,
-                              height: 10,
+                              width: 15,
+                              height: 15,
                               builder: (ctx) => GestureDetector(
                                   onTap: () {
                                     setState(() {
@@ -455,6 +536,10 @@ class _TileBuilderPageState extends State<TileBuilderPage> {
                                               brevet['clubwebsite']))
                                           .toList();
                                       selectedMarker = brevet.city;
+                                      _animatedMapMove(
+                                          LatLng(brevet.latitude,
+                                              brevet.longitude),
+                                          10);
                                     });
                                     _mapController.move(
                                         LatLng(
